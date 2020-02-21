@@ -255,9 +255,6 @@ class RestrictedBoltzmannMachine:
         self.weight_v_to_h = np.copy(self.weight_vh)
         self.weight_h_to_v = np.copy(np.transpose(self.weight_vh))
         self.weight_vh = None
-        self.weight_vh = np.random.normal(
-            loc=0.0, scale=0.01, size=(self.ndim_visible, self.ndim_hidden)
-        )  # ?
 
     def get_h_given_v_dir(self, visible_minibatch):
 
