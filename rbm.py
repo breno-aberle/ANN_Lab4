@@ -166,11 +166,11 @@ class RestrictedBoltzmannMachine:
 
         batch_size = h_0.shape[0]
 
-        self.delta_bias_v += np.mean(v_0 - v_k, axis=0)
+        self.delta_bias_v += self.learning_rate * np.mean(v_0 - v_k, axis=0)
         self.delta_weight_vh = self.learning_rate * (
             np.dot(v_0.T, h_0)  - np.dot(v_k.T, h_k)
         )  # ToDo: Test if with / batch_size or without
-        self.delta_bias_h += np.mean(h_0 - h_k, axis=0)
+        self.delta_bias_h += self.learning_rate * np.mean(h_0 - h_k, axis=0)
 
         self.bias_v += self.delta_bias_v
         self.weight_vh += self.delta_weight_vh
