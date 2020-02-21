@@ -201,7 +201,6 @@ class RestrictedBoltzmannMachine:
         assert self.weight_vh is not None
 
         n_samples = visible_minibatch.shape[0]
-
         p_h = sigmoid(
             self.bias_h + np.dot(visible_minibatch, self.weight_vh)
         )  # for entire mini-batch
@@ -235,8 +234,9 @@ class RestrictedBoltzmannMachine:
             to get activities. The probabilities as well as activities can then be concatenated back into a normal visible layer.
             """
             support = self.bias_v + np.dot(hidden_minibatch, self.weight_vh.T)  # get probabilities
-            pv_label = softmax(support[:, :-self.n_labels]) # split to sample different for labels and img
-            pv_img = sigmoid(support[:, :-self.n_labels])
+            pv_label = softmax(support[:, :self.n_labels]) # split to sample different for labels and img
+            pv_img = sigmoid(support[:, self.n_labels:])
+            p_v = np.concatenate((pv_label,pv_img),axis=1)
             v_img = sample_binary(pv_img)  # Flip to zero or one
             v_label = sample_categorical(pv_label)  # Get one '1' for entire labels of one image
             v = np.concatenate((v_label,v_img),axis=1) # concatenate again 

@@ -35,7 +35,7 @@ class DeepBeliefNet():
             
             'hid--pen' : RestrictedBoltzmannMachine(ndim_visible=sizes["hid"], ndim_hidden=sizes["pen"], batch_size=batch_size),
             
-            'pen+lbl--top' : RestrictedBoltzmannMachine(ndim_visible=sizes["pen"]+sizes["lbl"], ndim_hidden=sizes["top"],
+            'pen+lbl--top' : RestrictedBoltzmannMachine(ndim_visible=(sizes["pen"]+sizes["lbl"]), ndim_hidden=sizes["top"],
                                                         is_top=True, n_labels=n_labels, batch_size=batch_size)
         }
         
@@ -143,7 +143,7 @@ class DeepBeliefNet():
             # Untwine Weight for first two layers 
             self.rbm_stack["vis--hid"].untwine_weights()  
             self.rbm_stack["hid--pen"].untwine_weights()
-              
+
         except IOError :
             print ("training vis--hid")
             img_dir_vis = os.path.join(img_dir, 'vis--hid')
@@ -163,10 +163,11 @@ class DeepBeliefNet():
             if train_top_layer:
                 print ("training pen+lbl--top")
                 self.rbm_stack["hid--pen"].untwine_weights()
-                pen_trainset = self.rbm_stack["hid--pen"].get_h_given_v_dir(hid_trainset)[1]
+                pen_trainset = self.rbm_stack["hid--pen"].get_h_given_v_dir(hid_trainset)[1] 
+                pen_trainset = np.concatenate((lbl_trainset,pen_trainset),axis=1)
                 img_dir_pen = os.path.join(img_dir, 'pen+lbl--top')
                 os.makedirs(img_dir_pen)
-                self.rbm_stack["pen+lbl--top"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations, img_dir=img_dir_pen)          
+                self.rbm_stack["pen+lbl--top"].cd1(visible_trainset=pen_trainset, n_iterations=n_iterations, img_dir=img_dir_pen)          
                 self.savetofile_rbm(loc="trained_rbm",name="pen+lbl--top")            
 
         return    
