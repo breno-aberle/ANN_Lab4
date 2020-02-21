@@ -120,11 +120,6 @@ class RestrictedBoltzmannMachine:
 
             self.update_params(v_0, h_0, p_v_1, p_h_1)
 
-            # visualize once in a while when visible layer is input images
-
-           # if it % num_it_per_epoch == 0:
-            #    print("Epoch: ", (it // num_it_per_epoch))
-
             if it % self.rf["period"] == 0 and self.is_bottom:
 
                 viz_rf(
@@ -147,12 +142,14 @@ class RestrictedBoltzmannMachine:
                     ax[3].imshow(v_1[1].reshape((28, 28)))
                     ax[3].set_title('recon. sam. 2')
                     plt.show()
-
-            if it % self.print_period == 0:
+            
+            #Print loss
+            if it % self.print_period == 0:    
+                h_entire_data_set = self.get_h_given_v(visible_trainset)[1]
                 if binary_vis == 'True':
-                    v_out = self.get_v_given_h(self.get_h_given_v(visible_trainset)[1])[1]
-                else: 
-                    v_out = self.get_v_given_h(self.get_h_given_v(visible_trainset)[1])[0]
+                    v_out = self.get_v_given_h(h_entire_data_set)[1]
+                else:
+                    v_out = self.get_v_given_h(h_entire_data_set)[0]
                 print(
                     "iteration=%7d recon_loss=%4.4f"
                     % (it, np.linalg.norm(np.mean((visible_trainset - v_out), axis=1)))

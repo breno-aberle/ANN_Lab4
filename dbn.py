@@ -140,22 +140,26 @@ class DeepBeliefNet():
             self.loadfromfile_rbm(loc="trained_rbm",name="pen+lbl--top")        
 
         except IOError :
+            print ("training vis--hid")
             img_dir_vis = os.path.join(img_dir, 'vis--hid')
+            os.makedirs(img_dir_vis)
             self.rbm_stack["vis--hid"].cd1(visible_trainset=vis_trainset, n_iterations=n_iterations, img_dir=img_dir_vis)
             self.savetofile_rbm(loc="trained_rbm",name="vis--hid")
 
             print ("training hid--pen")
             self.rbm_stack["vis--hid"].untwine_weights()
-            hid_trainset = self.rbm_stack["vis--hid"].get_v_given_h_dir(self.rbm_stack["vis--hid"].get_h_given_v_dir(visible_trainset)[1])[1]
+            hid_trainset = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset)[1]
             img_dir_hid = os.path.join(img_dir, 'hid--pen')
+            os.makedirs(img_dir_hid)
             self.rbm_stack["hid--pen"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations, img_dir=img_dir_hid)          
             self.savetofile_rbm(loc="trained_rbm",name="hid--pen") 
             
             if train_top_layer:
                 print ("training pen+lbl--top")
                 self.rbm_stack["hid--pen"].untwine_weights()
-                pen_trainset = self.rbm_stack["hid--pen"].get_v_given_h_dir(self.rbm_stack["hid--pen"].get_h_given_v_dir(visible_trainset)[1])[1]
-                img_dir_pen = os.path.join(img_dir, 'pen+lbl--top)
+                pen_trainset = self.rbm_stack["hid--pen"].get_h_given_v_dir(vis_trainset)[1]
+                img_dir_pen = os.path.join(img_dir, 'pen+lbl--top')
+                os.makedirs(img_dir_pen)
                 self.rbm_stack["pen+lbl--top"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations, img_dir=img_dir_pen)          
                 self.savetofile_rbm(loc="trained_rbm",name="pen+lbl--top")            
 
