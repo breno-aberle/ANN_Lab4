@@ -111,10 +111,10 @@ class RestrictedBoltzmannMachine:
                 :,
             ]
             p_h, h_0 = self.get_h_given_v(v_0)
-            p_v_1, v_1 = self.get_v_given_h(p_h)  # change back to h_0
-            p_h_1, h_1 = self.get_h_given_v(p_v_1)  # change back to v_0
+            p_v_1, v_1 = self.get_v_given_h(h_0)  # change back to h_0
+            p_h_1, h_1 = self.get_h_given_v(v_1)  # change back to v_0
 
-            self.update_params(v_0, p_h, p_v_1, p_h_1)
+            self.update_params(v_0, h_0, p_v_1, p_h_1)
 
             # visualize once in a while when visible layer is input images
 
@@ -129,9 +129,15 @@ class RestrictedBoltzmannMachine:
                     it=it,
                     grid=self.rf["grid"],
                 )
-                fig, ax = plt.subplots(1, 2)
+                fig, ax = plt.subplots(1, 4, figsize=(20,20))
                 ax[0].imshow(v_0[0].reshape((28, 28)))
+                ax[0].set_title('sam. 1')
                 ax[1].imshow(v_1[0].reshape((28, 28)))
+                ax[1].set_title('recon. sam. 1')
+                ax[2].imshow(v_0[1].reshape((28, 28)))
+                ax[2].set_title('sam. 2')
+                ax[3].imshow(v_1[1].reshape((28, 28)))
+                ax[3].set_title('recon. sam. 2')
                 plt.show()
 
             if it % self.print_period == 0:
@@ -162,8 +168,8 @@ class RestrictedBoltzmannMachine:
 
         self.delta_bias_v += np.mean(v_0 - v_k, axis=0)
         self.delta_weight_vh = self.learning_rate * (
-            np.dot(v_0.T, h_0) / batch_size - np.dot(v_k.T, h_k) / batch_size
-        )  # ToDo: Not sure if we need to divide and iterate more
+            np.dot(v_0.T, h_0)  - np.dot(v_k.T, h_k)
+        )  # ToDo: Test if with / batch_size or without
         self.delta_bias_h += np.mean(h_0 - h_k, axis=0)
 
         self.bias_v += self.delta_bias_v
