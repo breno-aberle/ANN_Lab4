@@ -104,12 +104,9 @@ class RestrictedBoltzmannMachine:
         visible_trainset = sample_binary(visible_trainset)
         num_it_per_epoch = int((n_samples / self.batch_size))
         for it in tqdm.tqdm(range(n_iterations)):
-            v_0 = visible_trainset[
-                (it % num_it_per_epoch)
-                * self.batch_size : ((it % num_it_per_epoch) + 1)
-                * self.batch_size,
-                :,
-            ]
+            start_idx_batch = (it % num_it_per_epoch) * self.batch_size
+            end_idx_batch = ((it % num_it_per_epoch) + 1) * self.batch_size
+            v_0 = visible_trainset[start_idx_batch:end_idx_batch,:]
             p_h, h_0 = self.get_h_given_v(v_0)
             p_v_1, v_1 = self.get_v_given_h(p_h)  # change back to h_0
             p_h_1, h_1 = self.get_h_given_v(p_v_1)  # change back to v_0
