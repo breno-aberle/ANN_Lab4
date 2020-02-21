@@ -309,17 +309,7 @@ class RestrictedBoltzmannMachine:
             to get activities. The probabilities as well as activities can then be concatenated back into a normal visible layer.
             """
 
-            # [TODO TASK 4.2] Note that even though this function performs same computation as 'get_v_given_h' but with directed connections,
-            # this case should never be executed : when the RBM is a part of a DBN and is at the top, it will have not have directed connections.
-            # Appropriate code here is to raise an error (replace pass below)
-
-        
-            p_v = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))  # get probabilities
-            pv_label = p_v[:, :-self.n_labels]  # split to sample different for labels and img
-            pv_img = p_v[:, :-self.n_labels]
-            v_img = sample_binary(pv_img)  # Flip to zero or one
-            v_label = sample_categorical(pv_label)  # Get one '1' for entire labels of one image
-            v = np.concatenate((v_label,v_img),axis=1) # concatenate again 
+            raise Exception('The top layer does not habe direct connections in a DBN. This function can not be called with top layer')
 
         else:
 
