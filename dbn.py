@@ -69,13 +69,17 @@ class DeepBeliefNet():
         vis = true_img # visible layer gets the image data
         
         lbl = np.ones(true_lbl.shape)/10. # Initilize labels
+        
         # drive the network bottom to top
         #ToDo: Calculate h with (get_h_given_v_dir) with rbm vis-hid
+        p_h_vis, h_vis = self.rbm_stack['vis--hid'].get_h_given_v_dir(vis) 
         #ToDo: Calculate h with (get_h_given_v_dir) with rbm hid-pen
-       
+        p_h_hid, h_hid = self.rbm_stack['hid--pen'].get_h_given_v_dir(vis)
+        
         for _ in range(self.n_gibbs_recog):
-             #ToDo: run alternating gibbs sampling with pen+lbs--top with cd1
-            pass
+            #ToDo: run alternating gibbs sampling with pen+lbs--top with cd1
+            self.rbm_stack['hid--pen'].cd1(visible_trainset = h_hid)
+            #pass
 
         #ToDo: read out labels from run (take first 10 columns) to predicted_lbl
         predicted_lbl = np.zeros(true_lbl.shape)
