@@ -234,9 +234,9 @@ class RestrictedBoltzmannMachine:
             Then, for both parts, use the appropriate activation function to get probabilities and a sampling method \
             to get activities. The probabilities as well as activities can then be concatenated back into a normal visible layer.
             """
-            p_v = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_vh.T))  # get probabilities
-            pv_label = p_v[:, :-self.n_labels]  # split to sample different for labels and img
-            pv_img = p_v[:, :-self.n_labels]
+            support = self.bias_v + np.dot(hidden_minibatch, self.weight_vh.T)  # get probabilities
+            pv_label = sigmoid(support[:, :-self.n_labels]) # split to sample different for labels and img
+            pv_img = softmax(support[:, :-self.n_labels])
             v_img = sample_binary(pv_img)  # Flip to zero or one
             v_label = sample_categorical(pv_label)  # Get one '1' for entire labels of one image
             v = np.concatenate((v_label,v_img),axis=1) # concatenate again 
