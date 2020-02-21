@@ -315,7 +315,7 @@ class RestrictedBoltzmannMachine:
 
         return p_v, v
 
-    def update_generate_params(self, inps, trgs, preds):
+    def update_generate_params(self, inps, trgs, p_preds):
 
         """Update generative weight "weight_h_to_v" and bias "bias_v"
         
@@ -328,15 +328,15 @@ class RestrictedBoltzmannMachine:
 
         # [TODO TASK 4.3] find the gradients from the arguments (replace the 0s below) and update the weight and bias parameters.
 
-        self.delta_weight_h_to_v += 0
-        self.delta_bias_v += 0
+        self.delta_weight_h_to_v += self.learning_rate * np.dot(inps.T, (trgs-p_preds))
+        self.delta_bias_v += self.learning_rate * np.mean(trgs - p_preds, axis=0)
 
         self.weight_h_to_v += self.delta_weight_h_to_v
         self.bias_v += self.delta_bias_v
 
         return
 
-    def update_recognize_params(self, inps, trgs, preds):
+    def update_recognize_params(self, inps, trgs, p_preds):
 
         """Update recognition weight "weight_v_to_h" and bias "bias_h"
         
@@ -346,11 +346,10 @@ class RestrictedBoltzmannMachine:
            preds: activities or probabilities of output unit (prediction)
            all args have shape (size of mini-batch, size of respective layer)
         """
+        #update weights according to lab slides
 
-        # [TODO TASK 4.3] find the gradients from the arguments (replace the 0s below) and update the weight and bias parameters.
-
-        self.delta_weight_v_to_h += 0
-        self.delta_bias_h += 0
+        self.delta_weight_v_to_h += self.learning_rate * np.dot(inps.T, (trgs-p_preds))
+        self.delta_bias_h += self.learning_rate * np.mean(trgs - p_preds, axis=0)
 
         self.weight_v_to_h += self.delta_weight_v_to_h
         self.bias_h += self.delta_bias_h
