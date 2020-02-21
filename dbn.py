@@ -131,15 +131,15 @@ class DeepBeliefNet():
         """
 
         try :
-
+            #Load RBM
             self.loadfromfile_rbm(loc="trained_rbm",name="vis--hid")
-            self.rbm_stack["vis--hid"].untwine_weights()            
-            
             self.loadfromfile_rbm(loc="trained_rbm",name="hid--pen")
-            self.rbm_stack["hid--pen"].untwine_weights()
+            self.loadfromfile_rbm(loc="trained_rbm",name="pen+lbl--top")      
             
-            self.loadfromfile_rbm(loc="trained_rbm",name="pen+lbl--top")        
-
+            # Untwine Weight for first two layers 
+            self.rbm_stack["vis--hid"].untwine_weights()  
+            self.rbm_stack["hid--pen"].untwine_weights()
+              
         except IOError :
             print ("training vis--hid")
             img_dir_vis = os.path.join(img_dir, 'vis--hid')
