@@ -101,12 +101,12 @@ class RestrictedBoltzmannMachine:
         print("learning CD1")
 
         n_samples = visible_trainset.shape[0]
-        visible_trainset = sample_binary(visible_trainset)
+        visible_trainset = sample_binary(visible_trainset) # not all values in the training dataset are 0 or 1
         num_it_per_epoch = int((n_samples / self.batch_size))
         for it in tqdm.tqdm(range(n_iterations)):
             start_idx_batch = (it % num_it_per_epoch) * self.batch_size
             end_idx_batch = ((it % num_it_per_epoch) + 1) * self.batch_size
-            v_0 = visible_trainset[start_idx_batch:end_idx_batch,:]
+            v_0 = visible_trainset[start_idx_batch:end_idx_batch,:] # retrieve the data that belongs to the batch
             p_h, h_0 = self.get_h_given_v(v_0)
             p_v_1, v_1 = self.get_v_given_h(h_0)  # change back to h_0
             p_h_1, h_1 = self.get_h_given_v(v_1)  # change back to v_0
@@ -162,8 +162,9 @@ class RestrictedBoltzmannMachine:
         """
 
         batch_size = h_0.shape[0]
-
-        self.delta_bias_v += self.learning_rate * np.mean(v_0 - v_k, axis=0)
+        
+        # we take the mean of all samples within the batch (20,748) - v_0 and v_k are vectors!
+        self.delta_bias_v += self.learning_rate * np.mean(v_0 - v_k, axis=0) 
         self.delta_weight_vh = self.learning_rate * (
             np.dot(v_0.T, h_0)  - np.dot(v_k.T, h_k)
         )  # ToDo: Test if with / batch_size or without
