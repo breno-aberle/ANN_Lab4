@@ -1,5 +1,7 @@
 from util import *
 from rbm import RestrictedBoltzmannMachine
+from datetime import date, datetime
+import os
 
 class DeepBeliefNet():    
 
@@ -112,7 +114,7 @@ class DeepBeliefNet():
             
         return
 
-    def train_greedylayerwise(self, vis_trainset, lbl_trainset, n_iterations):
+    def train_greedylayerwise(self, vis_trainset, lbl_trainset, n_iterations, train_top_layer=True, img_dir=''):
 
         """
         Greedy layer-wise training by stacking RBMs. This method first tries to load previous saved parameters of the entire RBM stack. 
@@ -123,6 +125,8 @@ class DeepBeliefNet():
           vis_trainset: visible data shaped (size of training set, size of visible layer)
           lbl_trainset: label data shaped (size of training set, size of label layer)
           n_iterations: number of iterations of learning (each iteration learns a mini-batch)
+          train_top_layer (boolean): If False only bottom and middle layer are computed
+          img_dir (str): directory in which rfs should be saved
         """
 
         try :
@@ -136,28 +140,24 @@ class DeepBeliefNet():
             self.loadfromfile_rbm(loc="trained_rbm",name="pen+lbl--top")        
 
         except IOError :
-
-            # [TODO TASK 4.2] use CD-1 to train all RBMs greedily
-        
-            print ("training vis--hid")
-            """ 
-            CD-1 training for vis--hid 
-            """  
-            
-            self.rbm_stack["vis--hid"].cd1(visible_trainset=vis_trainset, n_iterations=n_iterations)
+            img_dir_vis = os.path.join(img_dir, 'vis--hid')
+            self.rbm_stack["vis--hid"].cd1(visible_trainset=vis_trainset, n_iterations=n_iterations, img_dir=img_dir_vis)
             self.savetofile_rbm(loc="trained_rbm",name="vis--hid")
 
             print ("training hid--pen")
             self.rbm_stack["vis--hid"].untwine_weights()
-            hid_trainset = self.rbm_stack["vis--hid"].get_v_given_h(self.rbm_stack["vis--hid"].get_h_given_v(visible_trainset)[1])[1]
-            self.rbm_stack["hid--pen"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations)          
-            self.savetofile_rbm(loc="trained_rbm",name="hid--pen")            
-
-            print ("training pen+lbl--top")
-            self.rbm_stack["hid--pen"].untwine_weights()
-            pen_trainset = self.rbm_stack["hid--pen"].get_v_given_h(self.rbm_stack["hid--pen"].get_h_given_v(visible_trainset)[1])[1]
-            self.rbm_stack["pen+lbl--top"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations)          
-            self.savetofile_rbm(loc="trained_rbm",name="pen+lbl--top")            
+            hid_trainset = self.rbm_stack["vis--hid"].get_v_given_h_dir(self.rbm_stack["vis--hid"].get_h_given_v_dir(visible_trainset)[1])[1]
+            img_dir_hid = os.path.join(img_dir, 'hid--pen')
+            self.rbm_stack["hid--pen"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations, img_dir=img_dir_hid)          
+            self.savetofile_rbm(loc="trained_rbm",name="hid--pen") 
+            
+            if train_top_layer:
+                print ("training pen+lbl--top")
+                self.rbm_stack["hid--pen"].untwine_weights()
+                pen_trainset = self.rbm_stack["hid--pen"].get_v_given_h_dir(self.rbm_stack["hid--pen"].get_h_given_v_dir(visible_trainset)[1])[1]
+                img_dir_pen = os.path.join(img_dir, 'pen+lbl--top)
+                self.rbm_stack["pen+lbl--top"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations, img_dir=img_dir_pen)          
+                self.savetofile_rbm(loc="trained_rbm",name="pen+lbl--top")            
 
         return    
 
