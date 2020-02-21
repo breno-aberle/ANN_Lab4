@@ -74,7 +74,7 @@ def load_idxfile(filename):
         shape = [struct.unpack(">I", _file.read(4))[0] for _ in range(ndim)]
         data = np.fromfile(_file, dtype=np.dtype(np.uint8).newbyteorder('>')).reshape(shape)
     return data
-    
+
 def read_mnist(dim=[28,28],n_train=60000,n_test=1000):
 
     """
