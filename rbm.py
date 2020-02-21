@@ -1,6 +1,7 @@
 # +
 from util import *
 import tqdm
+import os
 
 tqdm.tqdm = tqdm.tqdm_notebook
 import matplotlib.pyplot as plt
@@ -89,24 +90,30 @@ class RestrictedBoltzmannMachine:
 
         return
 
-    def cd1(self, visible_trainset, n_iterations=10000):
+    def cd1(self, visible_trainset, n_iterations=10000, binary_vis=True, print_img=False, img_dir=''):
 
         """Contrastive Divergence with k=1 full alternating Gibbs sampling
 
         Args:
           visible_trainset: training data for this rbm, shape is (size of training set, size of visible layer)
           n_iterations: number of iterations of learning (each iteration learns a mini-batch)
+          binary_vis (boolean): determines wheater the input data is transfered into binary data or not
+          print_img (boolean): if True, images are logged during training
+          img_dir (str): directory in which rfs should be saved
         """
 
         print("learning CD1")
 
+    
+
         n_samples = visible_trainset.shape[0]
-        visible_trainset = sample_binary(visible_trainset) # not all values in the training dataset are 0 or 1
+        if binary_vis == True: 
+            visible_trainset = sample_binary(visible_trainset)
         num_it_per_epoch = int((n_samples / self.batch_size))
         for it in tqdm.tqdm(range(n_iterations)):
             start_idx_batch = (it % num_it_per_epoch) * self.batch_size
             end_idx_batch = ((it % num_it_per_epoch) + 1) * self.batch_size
-            v_0 = visible_trainset[start_idx_batch:end_idx_batch,:] # retrieve the data that belongs to the batch
+            v_0 = visible_trainset[start_idx_batch:end_idx_batch,:]
             p_h, h_0 = self.get_h_given_v(v_0)
             p_v_1, v_1 = self.get_v_given_h(h_0)  # change back to h_0
             p_h_1, h_1 = self.get_h_given_v(v_1)  # change back to v_0
@@ -115,31 +122,37 @@ class RestrictedBoltzmannMachine:
 
             # visualize once in a while when visible layer is input images
 
-            if it % num_it_per_epoch == 0:
-                print("Epoch: ", (it // num_it_per_epoch))
+           # if it % num_it_per_epoch == 0:
+            #    print("Epoch: ", (it // num_it_per_epoch))
 
             if it % self.rf["period"] == 0 and self.is_bottom:
+
                 viz_rf(
                     weights=self.weight_vh[:, self.rf["ids"]].reshape(
                         (self.image_size[0], self.image_size[1], -1)
                     ),
                     it=it,
                     grid=self.rf["grid"],
+                    dir=img_dir
                 )
-                fig, ax = plt.subplots(1, 4, figsize=(20,20))
-                ax[0].imshow(v_0[0].reshape((28, 28)))
-                ax[0].set_title('sam. 1')
-                ax[1].imshow(v_1[0].reshape((28, 28)))
-                ax[1].set_title('recon. sam. 1')
-                ax[2].imshow(v_0[1].reshape((28, 28)))
-                ax[2].set_title('sam. 2')
-                ax[3].imshow(v_1[1].reshape((28, 28)))
-                ax[3].set_title('recon. sam. 2')
-                plt.show()
+
+                if print_img is True: 
+                    fig, ax = plt.subplots(1, 4, figsize=(20, 20))
+                    ax[0].imshow(v_0[0].reshape((28, 28)))
+                    ax[0].set_title('sam. 1')
+                    ax[1].imshow(v_1[0].reshape((28, 28)))
+                    ax[1].set_title('recon. sam. 1')
+                    ax[2].imshow(v_0[1].reshape((28, 28)))
+                    ax[2].set_title('sam. 2')
+                    ax[3].imshow(v_1[1].reshape((28, 28)))
+                    ax[3].set_title('recon. sam. 2')
+                    plt.show()
 
             if it % self.print_period == 0:
-
-                v_out = self.get_v_given_h(self.get_h_given_v(visible_trainset)[1])[1]
+                if binary_vis == 'True':
+                    v_out = self.get_v_given_h(self.get_h_given_v(visible_trainset)[1])[1]
+                else: 
+                    v_out = self.get_v_given_h(self.get_h_given_v(visible_trainset)[1])[0]
                 print(
                     "iteration=%7d recon_loss=%4.4f"
                     % (it, np.linalg.norm(np.mean((visible_trainset - v_out), axis=1)))
@@ -162,9 +175,8 @@ class RestrictedBoltzmannMachine:
         """
 
         batch_size = h_0.shape[0]
-        
-        # we take the mean of all samples within the batch (20,748) - v_0 and v_k are vectors!
-        self.delta_bias_v += self.learning_rate * np.mean(v_0 - v_k, axis=0) 
+
+        self.delta_bias_v += self.learning_rate * np.mean(v_0 - v_k, axis=0)
         self.delta_weight_vh = self.learning_rate * (
             np.dot(v_0.T, h_0)  - np.dot(v_k.T, h_k)
         )  # ToDo: Test if with / batch_size or without
@@ -225,11 +237,12 @@ class RestrictedBoltzmannMachine:
             Then, for both parts, use the appropriate activation function to get probabilities and a sampling method \
             to get activities. The probabilities as well as activities can then be concatenated back into a normal visible layer.
             """
-
-            # [TODO TASK 4.1] compute probabilities and activations (samples from probabilities) of visible layer (replace the pass below). \
-            # Note that this section can also be postponed until TASK 4.2, since in this task, stand-alone RBMs do not contain labels in visible layer.
-
-            pass
+            p_v = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_vh.T))  # get probabilities
+            pv_label = p_v[:, :-self.n_labels]  # split to sample different for labels and img
+            pv_img = p_v[:, :-self.n_labels]
+            v_img = sample_binary(pv_img)  # Flip to zero or one
+            v_label = sample_categorical(pv_label)  # Get one '1' for entire labels of one image
+            v = np.concatenate((v_label,v_img),axis=1) # concatenate again 
 
         else:
 
@@ -266,12 +279,12 @@ class RestrictedBoltzmannMachine:
 
         n_samples = visible_minibatch.shape[0]
 
-        # [TODO TASK 4.2] perform same computation as the function 'get_h_given_v' but with directed connections (replace the zeros below)
+        p_h = sigmoid(
+            self.bias_h + np.dot(visible_minibatch, self.weight_v_to_h) #same computation as the function 'get_h_given_v' but with directed connections 
+        )  # for entire mini-batch
+        h = sample_binary(p_h)
 
-        return (
-            np.zeros((n_samples, self.ndim_hidden)),
-            np.zeros((n_samples, self.ndim_hidden)),
-        )
+        return p_h, h
 
     def get_v_given_h_dir(self, hidden_minibatch):
 
@@ -303,18 +316,20 @@ class RestrictedBoltzmannMachine:
             # this case should never be executed : when the RBM is a part of a DBN and is at the top, it will have not have directed connections.
             # Appropriate code here is to raise an error (replace pass below)
 
-            pass
+        
+            p_v = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))  # get probabilities
+            pv_label = p_v[:, :-self.n_labels]  # split to sample different for labels and img
+            pv_img = p_v[:, :-self.n_labels]
+            v_img = sample_binary(pv_img)  # Flip to zero or one
+            v_label = sample_categorical(pv_label)  # Get one '1' for entire labels of one image
+            v = np.concatenate((v_label,v_img),axis=1) # concatenate again 
 
         else:
 
-            # [TODO TASK 4.2] performs same computaton as the function 'get_v_given_h' but with directed connections (replace the pass and zeros below)
+            p_v = sigmoid(self.bias_v + np.dot(hidden_minibatch, self.weight_h_to_v))
+            v = sample_binary(p_v)
 
-            pass
-
-        return (
-            np.zeros((n_samples, self.ndim_visible)),
-            np.zeros((n_samples, self.ndim_visible)),
-        )
+        return p_v, v
 
     def update_generate_params(self, inps, trgs, preds):
 

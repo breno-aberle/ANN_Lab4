@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 def sigmoid(support):
     
@@ -100,7 +101,7 @@ def read_mnist(dim=[28,28],n_train=60000,n_test=1000):
 
     return train_imgs[:n_train],train_lbls_1hot[:n_train],test_imgs[:n_test],test_lbls_1hot[:n_test]
 
-def viz_rf(weights,it,grid):
+def viz_rf(weights,it,grid, dir):
 
     """
     Visualize receptive fields and save 
@@ -113,7 +114,9 @@ def viz_rf(weights,it,grid):
             axs[x,y].set_xticks([]);
             axs[x,y].set_yticks([]);
             axs[x,y].imshow(weights[:,:,y+grid[1]*x], cmap="bwr", vmin=-imax, vmax=imax, interpolation=None)
-    plt.savefig("rf.iter%06d.png"%it)
+    
+    results_dir = os.path.join(dir, "rf.iter%06d.png"%it)
+    plt.savefig(results_dir)
     plt.close('all')
 
 def stitch_video(fig,imgs):
