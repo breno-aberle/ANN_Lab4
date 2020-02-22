@@ -1,7 +1,8 @@
 from util import *
 from rbm import RestrictedBoltzmannMachine
 from datetime import date, datetime
-
+import tqdm
+tqdm.tqdm = tqdm.tqdm_notebook
 import os
 
 class DeepBeliefNet():    
@@ -38,7 +39,8 @@ class DeepBeliefNet():
             'pen+lbl--top' : RestrictedBoltzmannMachine(ndim_visible=(sizes["pen"]+sizes["lbl"]), ndim_hidden=sizes["top"],
                                                         is_top=True, n_labels=n_labels, batch_size=batch_size)
         }
-        
+        self.n_labels = n_labels
+
         self.sizes = sizes
 
         self.image_size = image_size
@@ -195,25 +197,40 @@ class DeepBeliefNet():
         except IOError :            
 
             self.n_samples = vis_trainset.shape[0]
+            num_it_per_epoch = int((self.n_samples / self.batch_size)) 
+            for it in tqdm.tqdm(range(n_iterations)): 
+                start_batch = (it % num_it_per_epoch) * self.batch_size
+                end_batch = ((it % num_it_per_epoch) + 1) * self.batch_size
+                vis = vis_trainset[start_batch:end_batch,:]
+                lbl = lbl_trainset[start_batch:end_batch,:]
+                #### vis -> hid -> pen (+lbl) -> top ####     
 
-            for it in range(n_iterations):            
-                                                
-                # [TODO TASK 4.3] wake-phase : drive the network bottom to top using fixing the visible and label data.
+                # wake-phase (according to slide page 24)
+                p_hid, hid = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis)
+                p_pen, pen = self.rbm_stack["hid--pen"].get_h_given_v_dir(hid)
 
-                # [TODO TASK 4.3] alternating Gibbs sampling in the top RBM for k='n_gibbs_wakesleep' steps, also store neccessary information for learning this RBM.
+                #alternating Gibbs sampling (according to page 25)
+                pen_lbl_0 = np.concatenate((lbl,pen),axis=1)
+                p_top_0, top_0 = self.rbm_stack["pen+lbl--top"].get_h_given_v(pen_lbl_0)
+                pen_lbl_k = np.copy(pen_lbl_0)
+                for _ in range(self.n_gibbs_wakesleep):
+                  p_top_k, top_k = self.rbm_stack["pen+lbl--top"].get_h_given_v(pen_lbl_k)
+                  p_pen_lbl_k, pen_lbl_k = self.rbm_stack["pen+lbl--top"].get_v_given_h(top_k)  # do we need to loop? # Do we need to end up at 500+10 units
 
-                # [TODO TASK 4.3] sleep phase : from the activities in the top RBM, drive the network top to bottom.
+                # sleep phase (page 26)
+                p_gen_hid, gen_hid = self.rbm_stack["hid--pen"].get_v_given_h_dir(pen_lbl_k[:,self.n_labels:])  #change input to generated one
+                p_v_out, v_out =  self.rbm_stack["vis--hid"].get_v_given_h_dir(gen_hid)
 
-                # [TODO TASK 4.3] compute predictions : compute generative predictions from wake-phase activations, and recognize predictions from sleep-phase activations.
-                # Note that these predictions will not alter the network activations, we use them only to learn the directed connections.
+                # Update generative parameters based on results from wake phase (page 28)
+                self.rbm_stack["vis--hid"].update_generate_params(hid, vis, p_v_out) #Question: Do we need to calculate pv_out again?
+                self.rbm_stack["hid--pen"].update_generate_params(pen, hid,  p_gen_hid)
                 
-                # [TODO TASK 4.3] update generative parameters : here you will only use 'update_generate_params' method from rbm class.
-
-                # [TODO TASK 4.3] update parameters of top rbm : here you will only use 'update_params' method from rbm class.
-
-                # [TODO TASK 4.3] update generative parameters : here you will only use 'update_recognize_params' method from rbm class.
-
-                if it % self.print_period == 0 : print ("iteration=%7d"%it)
+                # Update top rbb with update_params (page 29)
+                self.rbm_stack["pen+lbl--top"].update_params(pen_lbl_0, top_0, pen_lbl_k, top_k)
+                
+                #pdate recognize parameters (page 30)
+                self.rbm_stack["hid--pen"].update_recognize_params(gen_hid, pen_lbl_k[:,self.n_labels:],  p_pen) #Question: Do we need to calculate p_pen again? 
+                self.rbm_stack["vis--hid"].update_recognize_params(v_out, gen_hid,  p_hid)
                         
             self.savetofile_dbn(loc="trained_dbn",name="vis--hid")
             self.savetofile_dbn(loc="trained_dbn",name="hid--pen")
