@@ -97,46 +97,54 @@ class RestrictedBoltzmannMachine:
         Args:
           visible_trainset: training data for this rbm, shape is (size of training set, size of visible layer)
           n_iterations: number of iterations of learning (each iteration learns a mini-batch)
-          binary_vis (boolean): determines wheater the input data is transfered into binary data or not
+          binary_vis (boolean): determines wheater the input data is transferred into binary data or not
           print_img (boolean): if True, images are logged during training
-          img_dir (str): directory in which rfs should be saved
+          img_dir (str or None): directory in which rfs should be saved, if None no img will be saved
         """
 
         print("learning CD1")
-
-    
-
         n_samples = visible_trainset.shape[0]
         if binary_vis == True: 
             visible_trainset = sample_binary(visible_trainset)
         num_it_per_epoch = int((n_samples / self.batch_size))
         for it in tqdm.tqdm(range(n_iterations)):
+            # take batch out of entire dataset
             start_idx_batch = (it % num_it_per_epoch) * self.batch_size
             end_idx_batch = ((it % num_it_per_epoch) + 1) * self.batch_size
             v_0 = visible_trainset[start_idx_batch:end_idx_batch,:]
+            # calculate h based on v
             p_h, h_0 = self.get_h_given_v(v_0)
-            p_v_1, v_1 = self.get_v_given_h(h_0)  # change back to h_0
+            #calculate v based on h at t=1
+            p_v_1, v_1 = self.get_v_given_h(h_0) 
+            #calculate h based on v at t=1
             p_h_1, h_1 = self.get_h_given_v(v_1)  # change back to v_0
 
+            #update weight matix and bias 
             self.update_params(v_0, h_0, p_v_1, p_h_1)
 
-            if it % self.rf["period"] == 0 and self.is_bottom:
 
-                viz_rf(
-                    weights=self.weight_vh[:, self.rf["ids"]].reshape(
-                        (self.image_size[0], self.image_size[1], -1)
-                    ),
-                    it=it,
-                    grid=self.rf["grid"],
-                    dir=img_dir
-                )
+            if it % self.rf["period"] == 0 and self.is_bottom:
+                if img_dir is not None: 
+                    viz_rf(
+                        weights=self.weight_vh[:, self.rf["ids"]].reshape(
+                            (self.image_size[0], self.image_size[1], -1)
+                        ),
+                        it=it,
+                        grid=self.rf["grid"],
+                        dir=img_dir
+                    )
 
                 if print_img is True: 
                     fig, ax = plt.subplots(1, 4, figsize=(20, 20))
+                    # First image in batch
                     ax[0].imshow(v_0[0].reshape((28, 28)))
                     ax[0].set_title('sam. 1')
+
+                    #First image in batch at time=1
                     ax[1].imshow(v_1[0].reshape((28, 28)))
                     ax[1].set_title('recon. sam. 1')
+
+                    #Second image
                     ax[2].imshow(v_0[1].reshape((28, 28)))
                     ax[2].set_title('sam. 2')
                     ax[3].imshow(v_1[1].reshape((28, 28)))
@@ -146,10 +154,11 @@ class RestrictedBoltzmannMachine:
             #Print loss
             if it % self.print_period == 0:    
                 h_entire_data_set = self.get_h_given_v(visible_trainset)[1]
+                p_v_1, v_1 = self.get_v_given_h(h_entire_data_set)
                 if binary_vis == 'True':
-                    v_out = self.get_v_given_h(h_entire_data_set)[1]
+                   v_out = v_1
                 else:
-                    v_out = self.get_v_given_h(h_entire_data_set)[0]
+                    v_out = p_v_1
                 print(
                     "iteration=%7d recon_loss=%4.4f"
                     % (it, np.linalg.norm(np.mean((visible_trainset - v_out), axis=1)))
@@ -173,11 +182,11 @@ class RestrictedBoltzmannMachine:
 
         batch_size = h_0.shape[0]
 
-        self.delta_bias_v += self.learning_rate * np.mean(v_0 - v_k, axis=0)
+        self.delta_bias_v = self.learning_rate * np.mean(v_0 - v_k, axis=0)
         self.delta_weight_vh = self.learning_rate * (
-            np.dot(v_0.T, h_0)  - np.dot(v_k.T, h_k)
-        )  # ToDo: Test if with / batch_size or without
-        self.delta_bias_h += self.learning_rate * np.mean(h_0 - h_k, axis=0)
+            np.dot(v_0.T, h_0) - np.dot(v_k.T, h_k)
+        ) / batch_size 
+        self.delta_bias_h = self.learning_rate * np.mean(h_0 - h_k, axis=0)
 
         self.bias_v += self.delta_bias_v
         self.weight_vh += self.delta_weight_vh
@@ -326,10 +335,10 @@ class RestrictedBoltzmannMachine:
            all args have shape (size of mini-batch, size of respective layer)
         """
 
-        # [TODO TASK 4.3] find the gradients from the arguments (replace the 0s below) and update the weight and bias parameters.
+        batch_size = inps.shape[0]
 
-        self.delta_weight_h_to_v += self.learning_rate * np.dot(inps.T, (trgs-p_preds))
-        self.delta_bias_v += self.learning_rate * np.mean(trgs - p_preds, axis=0)
+        self.delta_weight_h_to_v = self.learning_rate * np.dot(inps.T, (trgs-p_preds)) / batch_size
+        self.delta_bias_v = self.learning_rate * np.mean(trgs - p_preds, axis=0) 
 
         self.weight_h_to_v += self.delta_weight_h_to_v
         self.bias_v += self.delta_bias_v
@@ -348,8 +357,10 @@ class RestrictedBoltzmannMachine:
         """
         #update weights according to lab slides
 
-        self.delta_weight_v_to_h += self.learning_rate * np.dot(inps.T, (trgs-p_preds))
-        self.delta_bias_h += self.learning_rate * np.mean(trgs - p_preds, axis=0)
+        batch_size = inps.shape[0]
+
+        self.delta_weight_v_to_h = self.learning_rate * np.dot(inps.T, (trgs-p_preds)) / batch_size
+        self.delta_bias_h = self.learning_rate * np.mean(trgs - p_preds, axis=0) 
 
         self.weight_v_to_h += self.delta_weight_v_to_h
         self.bias_h += self.delta_bias_h

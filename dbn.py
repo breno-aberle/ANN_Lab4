@@ -47,9 +47,9 @@ class DeepBeliefNet():
 
         self.batch_size = batch_size
         
-        self.n_gibbs_recog = 15
+        self.n_gibbs_recog = 15  # for recognition model
         
-        self.n_gibbs_gener = 200
+        self.n_gibbs_gener = 200  # for generative model
         
         self.n_gibbs_wakesleep = 5
 
@@ -57,7 +57,7 @@ class DeepBeliefNet():
         
         return
 
-    def recognize(self,true_img,true_lbl):
+    def recognize(self,true_img,true_lbl, k=None):
 
         """Recognize/Classify the data into label categories and calculate the accuracy
 
@@ -65,7 +65,8 @@ class DeepBeliefNet():
           true_imgs: visible data shaped (number of samples, size of visible layer)
           true_lbl: true labels shaped (number of samples, size of label layer). Used only for calculating accuracy, not driving the net
         """
-        
+        if k is None:
+            k = self.n_gibbs_recog
         n_samples = true_img.shape[0]
         
         vis = true_img # visible layer gets the image data
@@ -74,17 +75,20 @@ class DeepBeliefNet():
         
         # drive the network bottom to top
         #ToDo: Calculate h with (get_h_given_v_dir) with rbm vis-hid
-        p_h_vis, h_vis = self.rbm_stack['vis--hid'].get_h_given_v_dir(vis) 
+        p_h_vis, h_vis = self.rbm_stack['vis--hid'].get_h_given_v_dir(vis) # h_his is equal to hid
         #ToDo: Calculate h with (get_h_given_v_dir) with rbm hid-pen
-        p_h_hid, h_hid = self.rbm_stack['hid--pen'].get_h_given_v_dir(vis)
+        p_h_hid, h_hid = self.rbm_stack['hid--pen'].get_h_given_v_dir(h_vis) # h_hid is  equal to pen
         
-        for _ in range(self.n_gibbs_recog):
-            #ToDo: run alternating gibbs sampling with pen+lbs--top with cd1
-            self.rbm_stack['hid--pen'].cd1(visible_trainset = h_hid)
-            #pass
+        # One Gibbs sampling
+        pen_lbl = np.concatenate((lbl,h_hid),axis=1)  # add labels to pen   
+
+        # perform gibbs sampling for n_gibbs_recog iterations 
+        for _ in tqdm.tqdm(range(k)):
+            p_top_k, top_k = self.rbm_stack["pen+lbl--top"].get_h_given_v(pen_lbl)  # Calculate h based on v
+            p_pen_lbl_k, pen_lbl_k = self.rbm_stack["pen+lbl--top"].get_v_given_h(top_k)  # Calculate v based on h
 
         #ToDo: read out labels from run (take first 10 columns) to predicted_lbl
-        predicted_lbl = np.zeros(true_lbl.shape)
+        predicted_lbl = p_pen_lbl_k[:, :self.n_labels]  
             
         print ("accuracy = %.2f%%"%(100.*np.mean(np.argmax(predicted_lbl,axis=1)==np.argmax(true_lbl,axis=1))))
         
@@ -98,26 +102,49 @@ class DeepBeliefNet():
           true_lbl: true labels shaped (number of samples, size of label layer)
           name: string used for saving a video of generated visible activations
         """
-        
         n_sample = true_lbl.shape[0]
-        
+
         records = []        
-        fig,ax = plt.subplots(1,1,figsize=(3,3))
-        plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
-        ax.set_xticks([]); ax.set_yticks([])
+        fig,ax = plt.subplots(1,5,figsize=(30,30))
+        #plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+        #fig.set_xticks([]); fig.set_yticks([])
 
         lbl = true_lbl
+        pen = np.random.binomial(1, .5, (1, 500)) #random initialized according to (page 22)
+        pen_lbl = np.concatenate((lbl,pen),axis=1)  # add labels to pen 
 
-        # [TODO TASK 4.2] fix the label in the label layer and run alternating Gibbs sampling in the top RBM. From the top RBM, drive the network \ 
-        # top to the bottom visible layer (replace 'vis' from random to your generated visible layer).
-            
-        for _ in range(self.n_gibbs_gener):
+        #alternating Gibbs sampling (according to page 25)    
+        for i in tqdm.tqdm(range(self.n_gibbs_gener)):
 
-            vis = np.random.rand(n_sample,self.sizes["vis"])
-            
-            records.append( [ ax.imshow(vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None) ] )
-            
-        anim = stitch_video(fig,records).save("%s.generate%d.mp4"%(name,np.argmax(true_lbl)))            
+            #Test with not chlamed
+            pen_lbl = np.concatenate((lbl,pen_lbl[:,self.n_labels:]),axis=1)  # Fix the label
+            p_top, top = self.rbm_stack["pen+lbl--top"].get_h_given_v(pen_lbl)  # Calculate h (top) based on v (pen+lbl)
+            p_pen_lbl, pen_lbl = self.rbm_stack["pen+lbl--top"].get_v_given_h(top)  # Calculate v (pen+lbl) based on h (top)
+            p_gen_hid, gen_hid = self.rbm_stack["hid--pen"].get_v_given_h_dir(pen_lbl[:,self.n_labels:]) 
+            p_vis, vis =  self.rbm_stack["vis--hid"].get_v_given_h_dir(gen_hid)
+
+            if i == 0:
+                ax[i].imshow(p_vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None)
+                ax[i].set_title(np.argmax(true_lbl))
+            if i == 50:
+                ax[1].imshow(p_vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None)
+                ax[1].set_title(np.argmax(true_lbl))
+            if i == 100:
+                ax[2].imshow(p_vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None)
+                ax[2].set_title(np.argmax(true_lbl))
+            if i == 150:
+                ax[3].imshow(p_vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None)
+                ax[3].set_title(np.argmax(true_lbl))
+            if i == (self.n_gibbs_gener-1):
+                ax[4].imshow(p_vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None)
+                ax[4].set_title(np.argmax(true_lbl))
+    
+        plt.show()
+            #records.append( [ ax.imshow(vis.reshape(self.image_size), cmap="bwr", vmin=0, vmax=1, animated=True, interpolation=None) ] )
+
+           
+        #anim = stitch_video(fig,records)
+        #anim.save("%s.generate%d.mp4"%(name,np.argmax(true_lbl)))            
             
         return
 
@@ -135,41 +162,42 @@ class DeepBeliefNet():
           train_top_layer (boolean): If False only bottom and middle layer are computed
           img_dir (str): directory in which rfs should be saved
         """
-
+        # Load First Layer
         try :
-            #Load RBM
             self.loadfromfile_rbm(loc="trained_rbm",name="vis--hid")
-            self.loadfromfile_rbm(loc="trained_rbm",name="hid--pen")
-            self.loadfromfile_rbm(loc="trained_rbm",name="pen+lbl--top")      
-            
-            # Untwine Weight for first two layers 
-            self.rbm_stack["vis--hid"].untwine_weights()  
-            self.rbm_stack["hid--pen"].untwine_weights()
-
+            self.rbm_stack["vis--hid"].untwine_weights() 
         except IOError :
             print ("training vis--hid")
-            img_dir_vis = os.path.join(img_dir, 'vis--hid')
-            os.makedirs(img_dir_vis)
             # Gibbs sampling k=1 for vis to hid
-            self.rbm_stack["vis--hid"].cd1(visible_trainset=vis_trainset, n_iterations=n_iterations, img_dir=img_dir_vis)
+            self.rbm_stack["vis--hid"].cd1(visible_trainset=vis_trainset, n_iterations=n_iterations, img_dir=None)
             self.savetofile_rbm(loc="trained_rbm",name="vis--hid")
-
-            print ("training hid--pen")
             self.rbm_stack["vis--hid"].untwine_weights()
-            hid_trainset = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset)[1]
-            img_dir_hid = os.path.join(img_dir, 'hid--pen')
-            os.makedirs(img_dir_hid)
-            self.rbm_stack["hid--pen"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations, img_dir=img_dir_hid)          
+
+        # Load second layer
+        try:
+            self.loadfromfile_rbm(loc="trained_rbm",name="hid--pen")
+            self.rbm_stack["hid--pen"].untwine_weights()
+        
+        except IOError :
+            print ("training hid--pen")
+            hid_trainset = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset)[0]
+            self.rbm_stack["hid--pen"].cd1(visible_trainset=hid_trainset, n_iterations=n_iterations, img_dir=None)          
             self.savetofile_rbm(loc="trained_rbm",name="hid--pen") 
-            
-            if train_top_layer:
+            self.rbm_stack["hid--pen"].untwine_weights()
+
+        # Load top layer
+        if train_top_layer:
+            try: 
+                self.loadfromfile_rbm(loc="trained_rbm",name="pen+lbl--top")      
+            except IOError :
                 print ("training pen+lbl--top")
-                self.rbm_stack["hid--pen"].untwine_weights()
-                pen_trainset = self.rbm_stack["hid--pen"].get_h_given_v_dir(hid_trainset)[1] 
+                try: 
+                    pen_trainset = self.rbm_stack["hid--pen"].get_h_given_v_dir(hid_trainset) [0]
+                except UnboundLocalError:
+                    hid_trainset = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis_trainset)[0]
+                    pen_trainset = self.rbm_stack["hid--pen"].get_h_given_v_dir(hid_trainset)[0]
                 pen_trainset = np.concatenate((lbl_trainset,pen_trainset),axis=1)
-                img_dir_pen = os.path.join(img_dir, 'pen+lbl--top')
-                os.makedirs(img_dir_pen)
-                self.rbm_stack["pen+lbl--top"].cd1(visible_trainset=pen_trainset, n_iterations=n_iterations, img_dir=img_dir_pen)          
+                self.rbm_stack["pen+lbl--top"].cd1(visible_trainset=pen_trainset, n_iterations=n_iterations, img_dir=None)          
                 self.savetofile_rbm(loc="trained_rbm",name="pen+lbl--top")            
 
         return    
@@ -205,32 +233,47 @@ class DeepBeliefNet():
                 lbl = lbl_trainset[start_batch:end_batch,:]
                 #### vis -> hid -> pen (+lbl) -> top ####     
 
-                # wake-phase (according to slide page 24)
+                ########################## wake-phase (according to slide page 24) ###################
                 p_hid, hid = self.rbm_stack["vis--hid"].get_h_given_v_dir(vis)
                 p_pen, pen = self.rbm_stack["hid--pen"].get_h_given_v_dir(hid)
-
-                #alternating Gibbs sampling (according to page 25)
                 pen_lbl_0 = np.concatenate((lbl,pen),axis=1)
                 p_top_0, top_0 = self.rbm_stack["pen+lbl--top"].get_h_given_v(pen_lbl_0)
-                pen_lbl_k = np.copy(pen_lbl_0)
-                for _ in range(self.n_gibbs_wakesleep):
-                  p_top_k, top_k = self.rbm_stack["pen+lbl--top"].get_h_given_v(pen_lbl_k)
-                  p_pen_lbl_k, pen_lbl_k = self.rbm_stack["pen+lbl--top"].get_v_given_h(top_k)  # do we need to loop? # Do we need to end up at 500+10 units
 
-                # sleep phase (page 26)
-                p_gen_hid, gen_hid = self.rbm_stack["hid--pen"].get_v_given_h_dir(pen_lbl_k[:,self.n_labels:])  #change input to generated one
-                p_v_out, v_out =  self.rbm_stack["vis--hid"].get_v_given_h_dir(gen_hid)
+                pen_lbl_k = pen_lbl_0
+                top_k = top_0
 
-                # Update generative parameters based on results from wake phase (page 28)
-                self.rbm_stack["vis--hid"].update_generate_params(hid, vis, p_v_out) #Question: Do we need to calculate pv_out again?
-                self.rbm_stack["hid--pen"].update_generate_params(pen, hid,  p_gen_hid)
+
+                ########################### alternating Gibbs sampling (according to page 25)  #######
+                for _ in range(self.n_gibbs_wakesleep-1):
+                    p_pen_lbl_k, pen_lbl_k = self.rbm_stack["pen+lbl--top"].get_v_given_h(top_k)
+                    p_top_k, top_k = self.rbm_stack["pen+lbl--top"].get_h_given_v(pen_lbl_k)
+                    # do we need to loop? # Do we need to end up at 500+10 units
                 
-                # Update top rbb with update_params (page 29)
+
+                ###########################  sleep phase (page 26)  ################################## 
+                p_gen_pen_lbl, pen_gen_lbl_k = self.rbm_stack["pen+lbl--top"].get_v_given_h(top_k)
+                p_gen_hid, gen_hid = self.rbm_stack["hid--pen"].get_v_given_h_dir(pen_lbl_k[:,self.n_labels:])  
+                p_gen_vis, gen_vis =  self.rbm_stack["vis--hid"].get_v_given_h_dir(gen_hid)
+         
+
+
+
+                ########################## Update generative parameters (page 28)  ####################
+                p_preds_vis, _ = self.rbm_stack["vis--hid"].get_v_given_h_dir(hid) 
+                self.rbm_stack["vis--hid"].update_generate_params(hid, vis, p_preds_vis) 
+                p_preds_hid, _ = self.rbm_stack["hid--pen"].get_v_given_h_dir(pen) 
+                self.rbm_stack["hid--pen"].update_generate_params(pen, hid,  p_preds_hid)
+
+                
+                ########################## Update top rbb with update_params (page 29) ################
                 self.rbm_stack["pen+lbl--top"].update_params(pen_lbl_0, top_0, pen_lbl_k, top_k)
-                
-                #pdate recognize parameters (page 30)
-                self.rbm_stack["hid--pen"].update_recognize_params(gen_hid, pen_lbl_k[:,self.n_labels:],  p_pen) #Question: Do we need to calculate p_pen again? 
-                self.rbm_stack["vis--hid"].update_recognize_params(v_out, gen_hid,  p_hid)
+
+                      
+                ########################## Update recognize parameters (sleep phase) (page 30) ########
+                p_preds_pen, _ = self.rbm_stack["hid--pen"].get_h_given_v_dir(gen_hid) 
+                self.rbm_stack["hid--pen"].update_recognize_params(gen_hid, pen_lbl_k[:,self.n_labels:],  p_preds_pen) 
+                p_preds_hid, _ = self.rbm_stack["vis--hid"].get_h_given_v_dir(gen_vis)  
+                self.rbm_stack["vis--hid"].update_recognize_params(gen_vis, gen_hid,  p_preds_hid)
                         
             self.savetofile_dbn(loc="trained_dbn",name="vis--hid")
             self.savetofile_dbn(loc="trained_dbn",name="hid--pen")
