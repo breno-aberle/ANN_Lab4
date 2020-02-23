@@ -78,7 +78,7 @@ class RestrictedBoltzmannMachine:
 
         self.momentum = 0.7
 
-        self.print_period = 5000
+        self.print_period = 50
 
         self.rf = {  # receptive-fields. Only applicable when visible layer is input data
             "period": 5000,  # iteration period to visualize
@@ -90,7 +90,7 @@ class RestrictedBoltzmannMachine:
 
         return
 
-    def cd1(self, visible_trainset, n_iterations=10000, binary_vis=True, print_img=False, img_dir=''):
+    def cd1(self, visible_trainset, n_iterations=10000, binary_vis=True, print_img=False, img_dir='', return_loss = False):
 
         """Contrastive Divergence with k=1 full alternating Gibbs sampling
 
@@ -99,10 +99,14 @@ class RestrictedBoltzmannMachine:
           n_iterations: number of iterations of learning (each iteration learns a mini-batch)
           binary_vis (boolean): determines wheater the input data is transferred into binary data or not
           print_img (boolean): if True, images are logged during training
-          img_dir (str or None): directory in which rfs should be saved, if None no img will be saved
+          img_dir (str): directory in which rfs should be saved
+          return_loss (boolean): If yes, list of loss after ever self.print_period is returned
         """
 
         print("learning CD1")
+
+    
+        recon_losses = []
         n_samples = visible_trainset.shape[0]
         if binary_vis == True: 
             visible_trainset = sample_binary(visible_trainset)
@@ -152,19 +156,22 @@ class RestrictedBoltzmannMachine:
                     plt.show()
             
             #Print loss
+          
             if it % self.print_period == 0:    
                 h_entire_data_set = self.get_h_given_v(visible_trainset)[1]
                 p_v_1, v_1 = self.get_v_given_h(h_entire_data_set)
                 if binary_vis == 'True':
                    v_out = v_1
                 else:
-                    v_out = p_v_1
-                print(
-                    "iteration=%7d recon_loss=%4.4f"
-                    % (it, np.linalg.norm(np.mean((visible_trainset - v_out), axis=1)))
-                )
-
-        return
+                    v_out = self.get_v_given_h(h_entire_data_set)[0]
+                recon_loss = np.linalg.norm(np.mean((visible_trainset - v_out), axis=1))
+                print(  "iteration=%7d recon_loss=%4.4f"% (it, recon_loss ))
+                if return_loss:
+                    recon_losses.append(recon_loss)
+        if return_loss:
+            return recon_losses
+        else: 
+            return 
 
     def update_params(self, v_0, h_0, v_k, h_k):
 
