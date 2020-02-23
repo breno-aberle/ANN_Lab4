@@ -7,3 +7,5 @@ __pycache__/
 data/
 trained_rbm/
 trained_dbn/
+trained_rbm_simple/
+trained_dbn_simple/
